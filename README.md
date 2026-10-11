@@ -66,6 +66,8 @@ When delivering analytics would cost your app anything, the analytics lose.
 Events are batched and sent every 5 seconds, when 100 are buffered, and when the process exits. Use a `rw_test_` key
 while you try it out; test events are kept apart from live ones in the dashboard.
 
+To check the whole setup, run the [endpoint tester](#test-it-end-to-end) from your project in the dashboard.
+
 ## With @x402/express
 
 The x402 resource server exposes lifecycle hooks. Register the reporter on them once:
@@ -180,6 +182,53 @@ export const GET = withX402(
 
 Next.js 15+ also has [`after()`](https://nextjs.org/docs/app/api-reference/functions/after), which works the same way:
 `after(() => rw.flush())`.
+
+## Test it end to end
+
+Each Requestway project has a **Test endpoint** tab. Give it the URL of a paid route and Requestway does what an agent
+would, showing each step live:
+
+1. Calls the route without paying and expects `402 Payment Required`.
+2. Reads the payment requirements and checks a client could pay them: scheme, network, asset, `payTo`, and the EIP-712
+   `name` and `version` in `extra`.
+3. Signs an EIP-3009 payment with test USDC from a Requestway wallet and retries with it.
+4. Reads the settlement receipt (`PAYMENT-RESPONSE`) and links the transaction on the block explorer.
+5. Waits up to 20 seconds for this reporter's `payment.settled` event to reach your project.
+
+It only ever pays on testnets. If your route only accepts mainnet, the tester checks the 402 and stops; it never spends
+real money. To run the full paid test, accept Base Sepolia, for example on a staging deployment:
+
+```ts
+const server = new x402ResourceServer(new HTTPFacilitatorClient({ url: 'https://x402.org/facilitator' }))
+  .register('eip155:84532', new ExactEvmScheme())
+
+app.use(
+  paymentMiddleware(
+    {
+      'GET /premium-data': {
+        accepts: [{ scheme: 'exact', price: '$0.01', network: 'eip155:84532', payTo: '0xYourAddress' }],
+      },
+    },
+    server,
+  ),
+)
+```
+
+For the last step to pass:
+
+- **Report the transaction.** The tester matches your event by transaction hash, so pass
+  `transaction: ctx.result.transaction` to `rw.settled()`, as the [Express example](#with-x402express) does.
+- **Flush within 20 seconds.** A long-lived server's 5-second interval is enough. On serverless, use `waitUntil` or
+  `await rw.flush()`, or the event never leaves the function.
+- **Use a key for the same project.** Either its `rw_live_` or `rw_test_` key works.
+
+Test payments are reported with their testnet network, so they appear under **Testnet** in the dashboard and never mix
+with real earnings. The dashboard opens on whichever network your app reported from most recently, so it follows you to
+**Mainnet** when you switch `network` to `eip155:8453`.
+
+The tester calls only public `https` addresses, never follows redirects, and identifies itself as
+`RequestwayEndpointTester/1.0`. It is part of the dashboard, not this package: nothing here sends test requests or
+holds keys.
 
 ## Serverless and edge
 
