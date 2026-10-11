@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { createExitRegistry } from '../src/exit.js'
 import { createReporter } from '../src/reporter.js'
 import { FakeProcess, deferred, fakeFetch, make, payment, status } from './helpers.js'
@@ -97,5 +97,35 @@ describe('process exit handling', () => {
     const rw = createReporter({ key: KEY, fetch: fakeFetch().fn, flushInterval: 0 }, registry)
     rw.observed(payment)
     await expect(rw.shutdown()).resolves.toBeUndefined()
+  })
+
+  it('sees an app handler registered with once() and leaves shutdown to it', async () => {
+    const target = new FakeProcess()
+    const graceful = vi.fn()
+    target.once('SIGTERM', graceful)
+    const { reporter: rw } = make({ key: KEY, fetch: fakeFetch().fn }, target)
+    rw.observed(payment)
+
+    target.emit('SIGTERM')
+    await tick()
+
+    expect(graceful).toHaveBeenCalledOnce()
+    expect(target.kill).not.toHaveBeenCalled()
+  })
+
+  it('steps aside for a handler that re-raises only when it is the last listener', async () => {
+    const target = new FakeProcess()
+    const reraise = vi.fn()
+    target.on('SIGTERM', () => {
+      if (target.listenerCount('SIGTERM') === 1) reraise()
+    })
+    const { reporter: rw } = make({ key: KEY, fetch: fakeFetch().fn }, target)
+    rw.observed(payment)
+
+    target.emit('SIGTERM')
+    await tick()
+
+    expect(reraise).toHaveBeenCalledOnce()
+    expect(target.kill).not.toHaveBeenCalled()
   })
 })

@@ -96,4 +96,16 @@ describe.each(['esm', 'cjs'] as const)('in a real %s process', (format) => {
     )
     expect(result.code).toBe(7)
   })
+
+  it('lets a once() graceful shutdown finish', async () => {
+    const result = await run(
+      format,
+      `process.once('SIGTERM', () => setTimeout(() => process.exit(9), 300));
+       reporter({ key: 'rw_test_x', url: ${JSON.stringify(url)} });
+       setInterval(() => {}, 1000);
+       console.log('ready')`,
+      'SIGTERM',
+    )
+    expect(result.code).toBe(9)
+  })
 })

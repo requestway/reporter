@@ -2,6 +2,7 @@
 export interface ExitTarget {
   readonly pid: number
   on(event: string, listener: () => void): unknown
+  prependListener(event: string, listener: () => void): unknown
   removeListener(event: string, listener: () => void): unknown
   listenerCount(event: string): number
   kill(pid: number, signal: string): unknown
@@ -41,6 +42,10 @@ export function createExitRegistry(target: ExitTarget | undefined): ExitRegistry
   }
 
   const onSignal = (signal: string): void => {
+    // Our listener is prepended, so it runs first and every other listener,
+    // including the app's once() handlers, is still registered here.
+    const appHandles = target !== undefined && target.listenerCount(signal) > 1
+
     const listener = installed.get(signal)
     if (listener !== undefined && target !== undefined) {
       target.removeListener(signal, listener)
@@ -50,7 +55,6 @@ export function createExitRegistry(target: ExitTarget | undefined): ExitRegistry
     // If the application listens for this signal it owns shutdown. Otherwise
     // our listener has suppressed Node's default exit, so restore it after
     // flushing by re-raising the signal with no listener attached.
-    const appHandles = target !== undefined && target.listenerCount(signal) > 0
     const budget = Math.max(0, ...[...reporters].map((r) => r.exitBudget))
 
     let timer: ReturnType<typeof setTimeout> | undefined
@@ -78,7 +82,7 @@ export function createExitRegistry(target: ExitTarget | undefined): ExitRegistry
       for (const signal of SIGNALS) {
         const listener = (): void => onSignal(signal)
         installed.set(signal, listener)
-        target.on(signal, listener)
+        target.prependListener(signal, listener)
       }
     } catch {
       uninstall()
@@ -114,6 +118,7 @@ function realProcess(): ExitTarget | undefined {
   if (
     proc === undefined ||
     typeof proc.on !== 'function' ||
+    typeof proc.prependListener !== 'function' ||
     typeof proc.removeListener !== 'function' ||
     typeof proc.listenerCount !== 'function' ||
     typeof proc.kill !== 'function' ||
