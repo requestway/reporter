@@ -435,6 +435,18 @@ Content-Type: application/json
 `payment.observed` (no extras). The same envelope is sent by the Laravel package,
 [`requestway/laravel-x402`](https://github.com/requestway/laravel-x402), with `"source": "laravel-x402"`.
 
+## Learn more
+
+- [Install guide](https://requestway.com/docs): Laravel and Node setup, the endpoint tester and the ingest API
+- [What is x402?](https://requestway.com/x402): the protocol, its headers, facilitators, testnet and mainnet
+- [x402 with Express, Next.js and Hono](https://requestway.com/articles/x402-express-nextjs-hono): a practical guide,
+  including reporting from serverless functions
+- [Testing x402 payments on Base Sepolia](https://requestway.com/articles/test-x402-payments-base-sepolia) without
+  spending real money
+- [Why x402 payments fail](https://requestway.com/articles/why-x402-payments-fail): the common errors and how to fix them
+- [All articles](https://requestway.com/articles)
+- On Laravel? [`requestway/laravel-x402`](https://github.com/requestway/laravel-x402) charges and reports in one package.
+
 ## License
 
 MIT
